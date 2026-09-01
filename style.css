@@ -157,12 +157,13 @@ h2 {
 ========================= */
 
 #timerDisplay {
+    /*font-family:'Jersey 10 Charted';*/
     font-size: 48px;
     font-weight: bold;
 
     margin: 20px 0;
 
-    font-variant-numeric: tabular-nums;
+    font-variant-numeric: "tubular-nums";
 }
 
 

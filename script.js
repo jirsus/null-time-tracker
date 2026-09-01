@@ -14,11 +14,10 @@ let selectedAccount = null;
 let selectedDepartment = null;
 let selectedTask = null;
 
-let timerInterval = null;
-let seconds = 0;
-let isPaused = false;
+let activeSessionId = null;
+let activeStartTime = null;
 
-let startTime = null;
+let timerInterval = null;
 
 
 // =========================
@@ -31,7 +30,6 @@ const departmentButtons = document.querySelectorAll(".department button");
 const taskButtons = document.querySelectorAll(".task button");
 
 const startButton = document.querySelector("#startButton");
-const pauseButton = document.querySelector("#pauseButton");
 const stopButton = document.querySelector("#stopButton");
 const timerDisplay = document.querySelector("#timerDisplay");
 
@@ -44,6 +42,11 @@ employeeButtons.forEach(function(button) {
 
     button.addEventListener("click", function() {
 
+        // Don't change employee while timer is running
+        if (activeSessionId !== null) {
+            return;
+        }
+
         employeeButtons.forEach(function(employeeButton) {
             employeeButton.classList.remove("selected");
         });
@@ -51,8 +54,6 @@ employeeButtons.forEach(function(button) {
         button.classList.add("selected");
 
         selectedEmployee = button.textContent.trim();
-
-        console.log("Selected employee:", selectedEmployee);
 
     });
 
@@ -67,6 +68,10 @@ accountButtons.forEach(function(button) {
 
     button.addEventListener("click", function() {
 
+        if (activeSessionId !== null) {
+            return;
+        }
+
         accountButtons.forEach(function(accountButton) {
             accountButton.classList.remove("selected");
         });
@@ -74,8 +79,6 @@ accountButtons.forEach(function(button) {
         button.classList.add("selected");
 
         selectedAccount = button.textContent.trim();
-
-        console.log("Selected account:", selectedAccount);
 
     });
 
@@ -90,6 +93,10 @@ departmentButtons.forEach(function(button) {
 
     button.addEventListener("click", function() {
 
+        if (activeSessionId !== null) {
+            return;
+        }
+
         departmentButtons.forEach(function(departmentButton) {
             departmentButton.classList.remove("selected");
         });
@@ -97,8 +104,6 @@ departmentButtons.forEach(function(button) {
         button.classList.add("selected");
 
         selectedDepartment = button.textContent.trim();
-
-        console.log("Selected department:", selectedDepartment);
 
     });
 
@@ -113,6 +118,10 @@ taskButtons.forEach(function(button) {
 
     button.addEventListener("click", function() {
 
+        if (activeSessionId !== null) {
+            return;
+        }
+
         taskButtons.forEach(function(taskButton) {
             taskButton.classList.remove("selected");
         });
@@ -121,18 +130,25 @@ taskButtons.forEach(function(button) {
 
         selectedTask = button.textContent.trim();
 
-        console.log("Selected task:", selectedTask);
-
     });
 
 });
 
 
 // =========================
-// START TIMER
+// START
 // =========================
 
-startButton.addEventListener("click", function() {
+startButton.addEventListener("click", async function() {
+
+    // Already running
+    if (activeSessionId !== null) {
+        alert("A timer is already running.");
+        return;
+    }
+
+
+    // Required selections
 
     if (selectedEmployee === null) {
         alert("Please select an employee.");
@@ -154,133 +170,185 @@ startButton.addEventListener("click", function() {
         return;
     }
 
-    if (timerInterval !== null) {
-        return;
-    }
 
-    if (isPaused === true) {
-        return;
-    }
+    // =========================
+    // CREATE SESSION
+    // =========================
 
-    startTime = new Date();
+    activeSessionId = crypto.randomUUID();
 
-    timerInterval = setInterval(function() {
-        seconds++;
-        updateTimer();
-    }, 1000);
+    activeStartTime = new Date();
 
-    console.log("Timer started");
-    console.log("Employee:", selectedEmployee);
-    console.log("Account:", selectedAccount);
-    console.log("Department:", selectedDepartment);
-    console.log("Task:", selectedTask);
-
-});
-
-
-// =========================
-// PAUSE / RESUME
-// =========================
-
-pauseButton.addEventListener("click", function() {
-
-    if (timerInterval !== null) {
-
-        clearInterval(timerInterval);
-        timerInterval = null;
-
-        isPaused = true;
-
-        pauseButton.textContent = "Resume";
-
-        console.log("Timer paused");
-
-        return;
-    }
-
-    if (isPaused === true) {
-
-        timerInterval = setInterval(function() {
-            seconds++;
-            updateTimer();
-        }, 1000);
-
-        isPaused = false;
-
-        pauseButton.textContent = "Pause";
-
-        console.log("Timer resumed");
-
-    }
-
-});
-
-
-// =========================
-// STOP TIMER + SAVE
-// =========================
-
-stopButton.addEventListener("click", async function() {
-
-    if (timerInterval === null && isPaused === false) {
-        return;
-    }
-
-    clearInterval(timerInterval);
-    timerInterval = null;
-
-    const endTime = new Date();
 
     const sessionData = {
+
+        action: "start",
+
+        sessionId: activeSessionId,
+
         employee: selectedEmployee,
+
         account: selectedAccount,
+
         department: selectedDepartment,
-        task: selectedTask,
-        startTime: startTime.toISOString(),
-        endTime: endTime.toISOString(),
-        durationSeconds: seconds
+
+        task: selectedTask
+
     };
 
-    console.log("Saving session:", sessionData);
+
+    // =========================
+    // SAVE LOCALLY
+    // =========================
+
+    const localSession = {
+
+        sessionId: activeSessionId,
+
+        employee: selectedEmployee,
+
+        account: selectedAccount,
+
+        department: selectedDepartment,
+
+        task: selectedTask,
+
+        startTime: activeStartTime.toISOString()
+
+    };
+
+    localStorage.setItem(
+        "nullActiveSession",
+        JSON.stringify(localSession)
+    );
+
+
+    // =========================
+    // SEND START TO SHEETS
+    // =========================
 
     try {
 
         await fetch(GOOGLE_SCRIPT_URL, {
+
             method: "POST",
+
             mode: "no-cors",
+
             headers: {
                 "Content-Type": "text/plain;charset=utf-8"
             },
+
             body: JSON.stringify(sessionData)
+
         });
 
-        console.log("Session sent to Google Sheets");
+        console.log("START sent to Google Sheets");
 
     } catch (error) {
 
-        console.error("Error saving session:", error);
+        console.error("Could not start session:", error);
 
-        alert("Could not save time entry.");
+        localStorage.removeItem("nullActiveSession");
+
+        activeSessionId = null;
+        activeStartTime = null;
+
+        alert("Could not start timer.");
 
         return;
+
     }
 
 
     // =========================
-    // RESET
+    // START VISUAL TIMER
     // =========================
 
-    seconds = 0;
-    isPaused = false;
-    startTime = null;
+    startVisualTimer();
 
-    updateTimer();
+    startButton.textContent = "Running";
 
-    pauseButton.textContent = "Pause";
+});
 
 
-    // KEEP EMPLOYEE SELECTED
-    // Only clear account, department, and task
+// =========================
+// STOP
+// =========================
+
+stopButton.addEventListener("click", async function() {
+
+    if (activeSessionId === null) {
+        alert("No active timer.");
+        return;
+    }
+
+
+    const stopData = {
+
+        action: "stop",
+
+        sessionId: activeSessionId
+
+    };
+
+
+    // =========================
+    // SEND STOP TO SHEETS
+    // =========================
+
+    try {
+
+        await fetch(GOOGLE_SCRIPT_URL, {
+
+            method: "POST",
+
+            mode: "no-cors",
+
+            headers: {
+                "Content-Type": "text/plain;charset=utf-8"
+            },
+
+            body: JSON.stringify(stopData)
+
+        });
+
+        console.log("STOP sent to Google Sheets");
+
+    } catch (error) {
+
+        console.error("Could not stop session:", error);
+
+        alert("Could not stop timer.");
+
+        return;
+
+    }
+
+
+    // =========================
+    // CLEAR SESSION
+    // =========================
+
+    clearInterval(timerInterval);
+
+    timerInterval = null;
+
+    activeSessionId = null;
+    activeStartTime = null;
+
+    localStorage.removeItem("nullActiveSession");
+
+
+    // Reset display
+
+    timerDisplay.textContent = "00:00:00";
+
+    startButton.textContent = "Start";
+
+
+    // Keep employee selected
+    // Clear account, department and task
 
     selectedAccount = null;
     selectedDepartment = null;
@@ -303,20 +371,188 @@ stopButton.addEventListener("click", async function() {
 
 
 // =========================
-// UPDATE TIMER DISPLAY
+// VISUAL TIMER
 // =========================
 
-function updateTimer() {
+function startVisualTimer() {
 
-    let hours = Math.floor(seconds / 3600);
-    let minutes = Math.floor((seconds % 3600) / 60);
-    let remainingSeconds = seconds % 60;
+    clearInterval(timerInterval);
 
-    hours = String(hours).padStart(2, "0");
-    minutes = String(minutes).padStart(2, "0");
-    remainingSeconds = String(remainingSeconds).padStart(2, "0");
+    updateTimerDisplay();
 
-    timerDisplay.textContent =
-        hours + ":" + minutes + ":" + remainingSeconds;
+
+    timerInterval = setInterval(function() {
+
+        updateTimerDisplay();
+
+    }, 1000);
 
 }
+
+
+// =========================
+// UPDATE DISPLAY FROM TIME
+// =========================
+
+function updateTimerDisplay() {
+
+    if (activeStartTime === null) {
+        timerDisplay.textContent = "00:00:00";
+        return;
+    }
+
+
+    const now = new Date();
+
+    const elapsedMilliseconds =
+        now.getTime() - activeStartTime.getTime();
+
+    const elapsedSeconds =
+        Math.floor(elapsedMilliseconds / 1000);
+
+
+    const hours =
+        Math.floor(elapsedSeconds / 3600);
+
+    const minutes =
+        Math.floor((elapsedSeconds % 3600) / 60);
+
+    const seconds =
+        elapsedSeconds % 60;
+
+
+    timerDisplay.textContent =
+        String(hours).padStart(2, "0") +
+        ":" +
+        String(minutes).padStart(2, "0") +
+        ":" +
+        String(seconds).padStart(2, "0");
+
+}
+
+
+// =========================
+// RESTORE AFTER REFRESH
+// =========================
+
+function restoreActiveSession() {
+
+    const savedSession =
+        localStorage.getItem("nullActiveSession");
+
+
+    if (!savedSession) {
+        return;
+    }
+
+
+    try {
+
+        const session =
+            JSON.parse(savedSession);
+
+
+        activeSessionId =
+            session.sessionId;
+
+        activeStartTime =
+            new Date(session.startTime);
+
+
+        selectedEmployee =
+            session.employee;
+
+        selectedAccount =
+            session.account;
+
+        selectedDepartment =
+            session.department;
+
+        selectedTask =
+            session.task;
+
+
+        // =========================
+        // RESTORE VISUAL SELECTIONS
+        // =========================
+
+        employeeButtons.forEach(function(button) {
+
+            if (
+                button.textContent.trim() ===
+                selectedEmployee
+            ) {
+                button.classList.add("selected");
+            }
+
+        });
+
+
+        accountButtons.forEach(function(button) {
+
+            if (
+                button.textContent.trim() ===
+                selectedAccount
+            ) {
+                button.classList.add("selected");
+            }
+
+        });
+
+
+        departmentButtons.forEach(function(button) {
+
+            if (
+                button.textContent.trim() ===
+                selectedDepartment
+            ) {
+                button.classList.add("selected");
+            }
+
+        });
+
+
+        taskButtons.forEach(function(button) {
+
+            if (
+                button.textContent.trim() ===
+                selectedTask
+            ) {
+                button.classList.add("selected");
+            }
+
+        });
+
+
+        startButton.textContent = "Running";
+
+        startVisualTimer();
+
+
+        console.log(
+            "Restored active session:",
+            activeSessionId
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "Could not restore session:",
+            error
+        );
+
+        localStorage.removeItem(
+            "nullActiveSession"
+        );
+
+    }
+
+}
+
+
+// =========================
+// RUN WHEN PAGE LOADS
+// =========================
+
+restoreActiveSession();

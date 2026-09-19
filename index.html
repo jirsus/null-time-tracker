@@ -252,6 +252,52 @@
     .start:disabled { background: #b8bbc3; box-shadow: none; cursor: not-allowed; }
     .selection-summary { color: var(--muted); font-size: 13px; line-height: 1.4; }
 
+    .manual { margin-top: 20px; padding: clamp(18px, 4vw, 28px); }
+    .manual summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      list-style: none;
+      cursor: pointer;
+      font-size: 17px;
+      font-weight: 600;
+    }
+    .manual summary::-webkit-details-marker { display: none; }
+    .manual summary::after {
+      content: "+";
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      color: var(--purple);
+      font-size: 20px;
+      font-weight: 400;
+    }
+    .manual[open] summary::after { content: "−"; }
+    .manual-subtitle { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; font-weight: 400; }
+    .manual-form { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); }
+    .manual-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 12px;
+    }
+    input[type="datetime-local"] {
+      width: 100%;
+      min-height: 47px;
+      margin-top: 7px;
+      padding: 0 13px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      outline: none;
+      background: var(--paper);
+      color: var(--ink);
+    }
+    input[type="datetime-local"]:focus-visible { outline: 3px solid rgba(25, 44, 196, .22); outline-offset: 2px; }
+    .manual-duration { color: var(--muted); font-size: 13px; }
+
     .notice {
       display: none;
       margin-bottom: 16px;
@@ -274,6 +320,7 @@
       .tagline, .refresh-label { display: none; }
       .refresh { width: 43px; padding: 0; justify-content: center; }
       .select-grid { grid-template-columns: 1fr; }
+      .manual-grid { grid-template-columns: 1fr; }
       .action-row { align-items: stretch; flex-direction: column; }
       .start { width: 100%; }
       .active-grid { grid-template-columns: 1fr; }
@@ -313,7 +360,7 @@
         <span class="updated" id="updatedLabel">Checking now…</span>
       </div>
       <div class="active-grid" id="activeSessions" aria-live="polite">
-        <div class="empty"><span class="empty-icon">⏳</span>Loading the team board…</div>
+        <div class="empty"><span class="empty-mark" aria-hidden="true"></span>Loading the team board…</div>
       </div>
     </section>
 
@@ -351,6 +398,41 @@
         <div class="selection-summary" id="selectionSummary">Pick at least one person and all three work details.</div>
       </div>
     </section>
+
+    <details class="card manual" id="manualDetails">
+      <summary>
+        <span>
+          Add a missed entry
+          <span class="manual-subtitle">For work that was already completed.</span>
+        </span>
+      </summary>
+      <div class="manual-form">
+        <div class="manual-grid">
+          <label class="select-label">Employee
+            <select id="manualEmployee"><option value="">Choose an employee</option></select>
+          </label>
+          <label class="select-label">Account
+            <select id="manualAccount"><option value="">Choose an account</option></select>
+          </label>
+          <label class="select-label">Department
+            <select id="manualDepartment"><option value="">Choose a department</option></select>
+          </label>
+          <label class="select-label">Task
+            <select id="manualTask"><option value="">Choose a task</option></select>
+          </label>
+          <label class="select-label">Start date and time
+            <input id="manualStart" type="datetime-local">
+          </label>
+          <label class="select-label">End date and time
+            <input id="manualEnd" type="datetime-local">
+          </label>
+        </div>
+        <div class="action-row">
+          <button class="start" id="manualSaveButton" type="button" disabled>Save past entry</button>
+          <div class="manual-duration" id="manualDuration">Enter a valid start and end time.</div>
+        </div>
+      </div>
+    </details>
 
     <div class="footer">Null Time Tracker · v3 · timestamps live in Google Sheets</div>
   </main>
@@ -395,7 +477,16 @@
       departmentSelect: document.getElementById("departmentSelect"),
       taskSelect: document.getElementById("taskSelect"),
       startButton: document.getElementById("startButton"),
-      selectionSummary: document.getElementById("selectionSummary")
+      selectionSummary: document.getElementById("selectionSummary"),
+      manualDetails: document.getElementById("manualDetails"),
+      manualEmployee: document.getElementById("manualEmployee"),
+      manualAccount: document.getElementById("manualAccount"),
+      manualDepartment: document.getElementById("manualDepartment"),
+      manualTask: document.getElementById("manualTask"),
+      manualStart: document.getElementById("manualStart"),
+      manualEnd: document.getElementById("manualEnd"),
+      manualSaveButton: document.getElementById("manualSaveButton"),
+      manualDuration: document.getElementById("manualDuration")
     };
 
     function escapeText(value) {
@@ -584,14 +675,54 @@
       else el.selectionSummary.textContent = Array.from(state.selectedEmployees).join(", ");
     }
 
+    function toDatetimeLocalValue(date) {
+      const offset = date.getTimezoneOffset() * 60000;
+      return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+    }
+
+    function resetManualTimes() {
+      const end = new Date();
+      const start = new Date(end.getTime() - 60 * 60 * 1000);
+      el.manualStart.value = toDatetimeLocalValue(start);
+      el.manualEnd.value = toDatetimeLocalValue(end);
+    }
+
+    function updateManualButton() {
+      const start = new Date(el.manualStart.value).getTime();
+      const end = new Date(el.manualEnd.value).getTime();
+      const validTimes = Number.isFinite(start) && Number.isFinite(end) && end > start;
+      const complete = el.manualEmployee.value && el.manualAccount.value &&
+        el.manualDepartment.value && el.manualTask.value && validTimes;
+
+      el.manualSaveButton.disabled = state.busy || !complete;
+      el.manualSaveButton.textContent = state.busy ? "Please wait…" : "Save past entry";
+
+      if (!Number.isFinite(start) || !Number.isFinite(end)) {
+        el.manualDuration.textContent = "Enter a valid start and end time.";
+      } else if (end <= start) {
+        el.manualDuration.textContent = "End time must be after start time.";
+      } else {
+        const totalMinutes = Math.round((end - start) / 60000);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        el.manualDuration.textContent = "Duration: " +
+          (hours ? hours + "h " : "") + minutes + "m";
+      }
+    }
+
     function setBusy(busy) {
       state.busy = busy;
       el.refreshButton.disabled = busy;
       el.refreshButton.classList.toggle("is-spinning", busy);
-      [el.accountSelect, el.departmentSelect, el.taskSelect].forEach(select => select.disabled = busy);
+      [
+        el.accountSelect, el.departmentSelect, el.taskSelect,
+        el.manualEmployee, el.manualAccount, el.manualDepartment, el.manualTask,
+        el.manualStart, el.manualEnd
+      ].forEach(control => control.disabled = busy);
       renderEmployeeChoices();
       renderActiveSessions();
       updateStartButton();
+      updateManualButton();
     }
 
     async function refreshActiveSessions(options = {}) {
@@ -668,16 +799,62 @@
       }
     }
 
+    async function saveManualEntry() {
+      if (el.manualSaveButton.disabled) return;
+
+      const employee = el.manualEmployee.value;
+      const payload = {
+        sessionId: makeId(),
+        employee: employee,
+        account: el.manualAccount.value,
+        department: el.manualDepartment.value,
+        task: el.manualTask.value,
+        startTime: new Date(el.manualStart.value).toISOString(),
+        endTime: new Date(el.manualEnd.value).toISOString()
+      };
+
+      setBusy(true);
+      setNotice("Saving the missed entry…");
+
+      try {
+        const result = await callApi("manual", payload);
+        if (!result.ok) throw new Error(result.error || "Could not save the missed entry.");
+
+        el.manualEmployee.value = "";
+        el.manualAccount.value = "";
+        el.manualDepartment.value = "";
+        el.manualTask.value = "";
+        resetManualTimes();
+        el.manualDetails.open = false;
+        setNotice("Past entry saved for " + employee + ".", "success");
+      } catch (error) {
+        setNotice(error.message || "Could not save the missed entry.", "error");
+      } finally {
+        setBusy(false);
+      }
+    }
+
     fillSelect(el.accountSelect, ACCOUNTS);
     fillSelect(el.departmentSelect, DEPARTMENTS);
     fillSelect(el.taskSelect, TASKS);
+    fillSelect(el.manualEmployee, EMPLOYEES);
+    fillSelect(el.manualAccount, ACCOUNTS);
+    fillSelect(el.manualDepartment, DEPARTMENTS);
+    fillSelect(el.manualTask, TASKS);
+    resetManualTimes();
     renderEmployeeChoices();
     renderActiveSessions();
     updateStartButton();
+    updateManualButton();
 
     [el.accountSelect, el.departmentSelect, el.taskSelect].forEach(select => select.addEventListener("change", updateStartButton));
     el.startButton.addEventListener("click", startSessions);
     el.refreshButton.addEventListener("click", () => refreshActiveSessions());
+    [
+      el.manualEmployee, el.manualAccount, el.manualDepartment,
+      el.manualTask, el.manualStart, el.manualEnd
+    ].forEach(control => control.addEventListener("change", updateManualButton));
+    el.manualSaveButton.addEventListener("click", saveManualEntry);
 
     refreshActiveSessions();
     setInterval(updateElapsedLabels, 30000);

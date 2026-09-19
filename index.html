@@ -1,291 +1,690 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Null Time Tracker</title>
-    <link rel="stylesheet" href="style.css?v=2">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Jersey+10+Charted&display=swap" rel="stylesheet">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#192cc4">
+  <title>Null Time Tracker v3</title>
+  <style>
+    :root {
+      --ink: #050505;
+      --muted: #676a73;
+      --paper: #ffffff;
+      --cream: #f3f4f6;
+      --line: #d9dce3;
+      --purple: #192cc4;
+      --purple-dark: #192cc4;
+      --purple-soft: #eef0f6;
+      --green: #defd38;
+      --green-soft: #defd38;
+      --red: #050505;
+      --red-soft: #eeeeef;
+      --shadow: 0 14px 36px rgba(5, 5, 5, .08);
+      --radius: 22px;
+    }
 
+    * { box-sizing: border-box; }
+
+    html { color-scheme: light; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--cream);
+      color: var(--ink);
+      font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, select { font: inherit; }
+    button { -webkit-tap-highlight-color: transparent; }
+
+    .app {
+      width: min(1040px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 28px 0 max(44px, env(safe-area-inset-bottom));
+    }
+
+    .masthead {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .brand { display: flex; align-items: center; }
+
+    h1, h2, p { margin: 0; }
+    h1 { font-size: clamp(23px, 4vw, 31px); line-height: 1.08; letter-spacing: -.035em; font-weight: 650; }
+    .tagline { margin-top: 5px; color: var(--muted); font-size: 14px; }
+
+    .refresh {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--paper);
+      color: var(--ink);
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(75, 55, 34, .05);
+    }
+    .refresh:hover { border-color: var(--ink); }
+    .refresh:disabled { opacity: .55; cursor: wait; }
+    .refresh-icon { display: inline-block; font-size: 18px; line-height: 1; }
+    .refresh.is-spinning .refresh-icon { animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .board { padding: clamp(18px, 4vw, 28px); margin-bottom: 20px; }
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .title-row { display: flex; align-items: center; gap: 10px; }
+    h2 { font-size: 19px; letter-spacing: -.02em; font-weight: 600; }
+    .count {
+      min-width: 27px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--green-soft);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 650;
+      text-align: center;
+    }
+    .updated { color: var(--muted); font-size: 12px; }
+
+    .active-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .session {
+      position: relative;
+      display: grid;
+      grid-template-columns: 12px 1fr auto;
+      align-items: start;
+      gap: 12px;
+      padding: 17px;
+      border: 1px solid #cfd3dd;
+      border-radius: 17px;
+      background: #f7f8fa;
+    }
+    .status-dot {
+      width: 11px;
+      height: 11px;
+      margin-top: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px rgba(222, 253, 56, .35);
+    }
+    .session-name { font-weight: 650; letter-spacing: -.01em; }
+    .session-detail { margin-top: 4px; color: #555861; font-size: 13px; line-height: 1.45; }
+    .elapsed { margin-top: 6px; color: var(--purple); font-size: 12px; font-weight: 600; }
+    .stop {
+      min-height: 38px;
+      padding: 0 13px;
+      border: 1px solid var(--ink);
+      border-radius: 12px;
+      background: var(--paper);
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .stop:hover { background: var(--ink); color: var(--paper); }
+    .stop:disabled { opacity: .55; cursor: wait; }
+
+    .empty {
+      padding: 28px 18px;
+      border: 1px dashed #bfc3cc;
+      border-radius: 17px;
+      text-align: center;
+      color: var(--muted);
+      background: #f6f7f9;
+    }
+    .empty-mark {
+      display: block;
+      width: 34px;
+      height: 8px;
+      margin: 0 auto 12px;
+      border-radius: 999px;
+      background: var(--green);
+      box-shadow: 0 0 0 1px var(--ink);
+    }
+
+    .setup { padding: clamp(18px, 4vw, 28px); }
+    .setup-intro { margin-bottom: 22px; }
+    .setup-intro p { margin-top: 5px; color: var(--muted); font-size: 14px; }
+    .field + .field { margin-top: 22px; }
+    .field-label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+      font-size: 14px;
+      font-weight: 650;
+    }
+    .hint { color: var(--muted); font-size: 12px; font-weight: 500; }
+
+    .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+    .choice {
+      min-height: 41px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--paper);
+      color: #3f424a;
+      font-size: 13px;
+      font-weight: 550;
+      cursor: pointer;
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+    }
+    .choice:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--purple); }
+    .choice[aria-pressed="true"] {
+      border-color: var(--purple);
+      background: var(--purple);
+      color: var(--paper);
+      box-shadow: inset 0 0 0 1px rgba(25, 44, 196, .12);
+    }
+    .choice:disabled {
+      border-style: dashed;
+      background: #eeeeef;
+      color: #92959d;
+      cursor: not-allowed;
+      text-decoration: line-through;
+    }
+
+    .select-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    label.select-label { display: block; color: #50535b; font-size: 12px; font-weight: 600; }
+    select {
+      width: 100%;
+      min-height: 47px;
+      margin-top: 7px;
+      padding: 0 38px 0 13px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      outline: none;
+      background: var(--paper);
+      color: var(--ink);
+      cursor: pointer;
+    }
+    select:focus-visible, button:focus-visible { outline: 3px solid rgba(118, 87, 214, .24); outline-offset: 2px; }
+
+    .action-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+    }
+    .start {
+      min-height: 52px;
+      padding: 0 24px;
+      border: 0;
+      border-radius: 15px;
+      background: var(--purple);
+      color: white;
+      font-weight: 650;
+      cursor: pointer;
+      box-shadow: 0 10px 22px rgba(25, 44, 196, .22);
+    }
+    .start:hover:not(:disabled) { filter: brightness(1.045); transform: translateY(-1px); }
+    .start:disabled { background: #b8bbc3; box-shadow: none; cursor: not-allowed; }
+    .selection-summary { color: var(--muted); font-size: 13px; line-height: 1.4; }
+
+    .notice {
+      display: none;
+      margin-bottom: 16px;
+      padding: 12px 15px;
+      border: 1px solid var(--purple);
+      border-radius: 14px;
+      background: var(--paper);
+      color: var(--purple);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .notice.show { display: block; }
+    .notice.error { border-color: var(--ink); background: var(--red-soft); color: var(--ink); }
+    .notice.success { border-color: var(--ink); background: var(--green-soft); color: var(--ink); }
+    .footer { padding: 18px 4px 0; color: #777a82; font-size: 11px; text-align: center; }
+
+    @media (max-width: 680px) {
+      .app { width: min(100% - 18px, 1040px); padding-top: 16px; }
+      .masthead { align-items: center; }
+      .tagline, .refresh-label { display: none; }
+      .refresh { width: 43px; padding: 0; justify-content: center; }
+      .select-grid { grid-template-columns: 1fr; }
+      .action-row { align-items: stretch; flex-direction: column; }
+      .start { width: 100%; }
+      .active-grid { grid-template-columns: 1fr; }
+      .session { grid-template-columns: 12px 1fr; }
+      .stop { grid-column: 2; width: 100%; margin-top: 3px; }
+      .updated { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
 </head>
-
 <body>
-
-    <!-- Header
-    <div class="header">
-        <h1>Time Tracker</h1>
-    </div>
--->
-    <!-- Employees -->
-<div class="employees-section">
-
-    <h2>Employee</h2>
-
-    <div class="employees">
-
-        <div class="employee">
-            <button>Jiro</button>
+  <main class="app">
+    <header class="masthead">
+      <div class="brand">
+        <div>
+          <h1>Null Time Tracker</h1>
+          <p class="tagline">A tiny shared check-in for the team.</p>
         </div>
+      </div>
+      <button class="refresh" id="refreshButton" type="button" aria-label="Refresh active sessions">
+        <span class="refresh-icon" aria-hidden="true">↻</span>
+        <span class="refresh-label">Refresh</span>
+      </button>
+    </header>
 
-        <div class="employee">
-            <button>Tey</button>
+    <div class="notice" id="notice" role="status" aria-live="polite"></div>
+
+    <section class="card board" aria-labelledby="workingTitle">
+      <div class="section-head">
+        <div class="title-row">
+          <h2 id="workingTitle">Who’s working?</h2>
+          <span class="count" id="activeCount">0</span>
         </div>
+        <span class="updated" id="updatedLabel">Checking now…</span>
+      </div>
+      <div class="active-grid" id="activeSessions" aria-live="polite">
+        <div class="empty"><span class="empty-icon">⏳</span>Loading the team board…</div>
+      </div>
+    </section>
 
-        <div class="employee">
-            <button>Paul</button>
+    <section class="card setup" aria-labelledby="startTitle">
+      <div class="setup-intro">
+        <h2 id="startTitle">Start a session</h2>
+        <p>Choose everyone working together, then add the shared details.</p>
+      </div>
+
+      <div class="field">
+        <div class="field-label">
+          <span>1. Who’s working?</span>
+          <span class="hint" id="employeeHint">Select one or more</span>
         </div>
+        <div class="choices" id="employeeChoices" role="group" aria-label="Employees"></div>
+      </div>
 
-        <div class="employee">
-            <button>Rain</button>
+      <div class="field">
+        <div class="field-label"><span>2. What are they working on?</span></div>
+        <div class="select-grid">
+          <label class="select-label">Account
+            <select id="accountSelect"><option value="">Choose an account</option></select>
+          </label>
+          <label class="select-label">Department
+            <select id="departmentSelect"><option value="">Choose a department</option></select>
+          </label>
+          <label class="select-label">Task
+            <select id="taskSelect"><option value="">Choose a task</option></select>
+          </label>
         </div>
-
-        <div class="employee">
-            <button>Lau</button>
-        </div>
-
-        <div class="employee">
-            <button>Red</button>
-        </div>
-
-        <div class="employee">
-            <button>Jonathan</button>
-        </div>
-
-        <div class="employee">
-            <button>Rafa</button>
-        </div>
-
-        <div class="employee">
-            <button>France</button>
-        </div>
-
-        <div class="employee">
-            <button>Tyrele</button>
-        </div>
-
-        <div class="employee">
-            <button>Pao</button>
-        </div>
-
-        <div class="employee">
-            <button>Yuwi</button>
-        </div>
-
-        <div class="employee">
-            <button>Stan</button>
-        </div>
-
-        <div class="employee">
-            <button>Emman</button>
-        </div>
-
-        <div class="employee">
-            <button>CJ</button>
-        </div>
-
-        <div class="employee">
-            <button>Alfred</button>
-        </div>
-
-    </div>
-
-</div>
-    <!-- Accounts -->
-    <div class="accounts-section">
-
-        <h2>Account</h2>
-
-        <div class="accounts">
-
-            <div class="account">
-                <button>ACTO</button>
-            </div>
-
-            <div class="account">
-                <button>Aldoldo Gelato</button>
-            </div>
-
-            <div class="account">
-                <button>Alibaba Chips</button>
-            </div>
-
-            <div class="account">
-                <button>Bang Bang Thai Eatery</button>
-            </div>
-
-            <div class="account">
-                <button>Clean Fuel</button>
-            </div>
-
-            <div class="account">
-                <button>Dental Hub</button>
-            </div>
-
-            <div class="account">
-                <button>Don Frank</button>
-            </div>
-
-            <div class="account">
-                <button>Inbox Stores</button>
-            </div>
-
-            <div class="account">
-                <button>Kochomo</button>
-            </div>
-
-            <div class="account">
-                <button>Pampanga Pickleball Center</button>
-            </div>
-
-            <div class="account">
-                <button>Revive Studio</button>
-            </div>
-
-            <div class="account">
-                <button>Rockwell Nepo</button>
-            </div>
-
-            <div class="account">
-                <button>Royce Hotel</button>
-            </div>
-
-            <div class="account">
-                <button>Singku Cafe</button>
-            </div>
-
-            <div class="account">
-                <button>Tom Taus</button>
-            </div>
-
-            <div class="account">
-                <button>Ton Cars</button>
-            </div>
-
-            <div class="account">
-                <button>Null Studios</button>
-            </div>
-
-            <div class="account">
-                <button>Other Projects</button>
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <!-- Departments -->
-    <div class="departments-section">
-
-        <h2>Department</h2>
-
-        <div class="departments">
-
-            <div class="department">
-                <button>Cam Dept</button>
-            </div>
-
-            <div class="department">
-                <button>Graphics</button>
-            </div>
-
-            <div class="department">
-                <button>Account Managers</button>
-            </div>
-
-            <div class="department">
-                <button>Finance</button>
-            </div>
-
-            <div class="department">
-                <button>Directors</button>
-            </div>
-
-        </div>
-
-    </div>
-
-    <!-- Task -->
-    <div class="task-section">
-
-        <h2>Task</h2>
-
-        <div class="tasks">
-
-            <div class="task">
-                <button>Video Edit</button>
-            </div>
-
-            <div class="task">
-                <button>Photo Edit</button>
-            </div>
-
-            <div class="task">
-                <button>Video Shoot</button>
-            </div>
-
-            <div class="task">
-                <button>Photo Shoot</button>
-            </div>
-
-            <div class="task">
-                <button>Graphic Edit</button>
-            </div>
-
-            <div class="task">
-                <button>Upload</button>
-            </div>
-
-            <div class="task">
-                <button>Meeting</button>
-            </div>
-
-            <div class="task">
-                <button>Account Management</button>
-            </div>
-
-            <div class="task">
-                <button>Pre-production</button>
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <!-- Timer -->
-    <div class="timer">
-
-        <h2>Timer</h2>
-
-        <div id="timerDisplay">
-            00:00:00
-        </div>
-
-        <button id="startButton">
-            Start
-        </button>
-
-        <!--
-        <button id="pauseButton">
-            Pause
-        </button>
-        -->
-
-        <button id="stopButton">
-            Stop
-        </button>
-
-    </div>
-
-    <!--BMO
-    <div class="tenor-gif-embed" data-postid="2319759899444213490" data-share-method="host" data-aspect-ratio="1" data-width="100%"><a href="https://tenor.com/view/bmo-adventure-time-dancing-bmo-dance-dancing-gif-2319759899444213490">Bmo Adventure Time Sticker</a>from <a href="https://tenor.com/search/bmo-stickers">Bmo Stickers</a></div> <script type="text/javascript" async src="https://tenor.com/embed.js"></script>
-    -->
-
-<div class="version">Null Time Tracker — v2.0</div>
-
-<script src="script.js?v=3"></script>
+      </div>
+
+      <div class="action-row">
+        <button class="start" id="startButton" type="button" disabled>Start working</button>
+        <div class="selection-summary" id="selectionSummary">Pick at least one person and all three work details.</div>
+      </div>
+    </section>
+
+    <div class="footer">Null Time Tracker · v3 · timestamps live in Google Sheets</div>
+  </main>
+
+  <script>
+    "use strict";
+
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw0ca-KwMYEqgmO9GLHw-WwdXLbXiL7_RX3yYVsHfkFRn7GKb2mnUyQy092Bta9bJEo5g/exec";
+
+    const EMPLOYEES = [
+      "Jiro", "Tey", "Paul", "Rain", "Lau", "Red", "Jonathan", "Rafa",
+      "France", "Tyrele", "Pao", "Yuwi", "Stan", "Emman", "CJ", "Alfred"
+    ];
+    const ACCOUNTS = [
+      "ACTO", "Aldoldo Gelato", "Alibaba Chips", "Bang Bang Thai Eatery", "Clean Fuel",
+      "Dental Hub", "Don Frank", "Inbox Stores", "Kochomo", "Pampanga Pickleball Center",
+      "Revive Studio", "Rockwell Nepo", "Royce Hotel", "Singku Cafe", "Tom Taus", "Ton Cars",
+      "Null Studios", "Other Projects"
+    ];
+    const DEPARTMENTS = ["Cam Dept", "Graphics", "Account Managers", "Finance", "Directors"];
+    const TASKS = [
+      "Video Edit", "Photo Edit", "Video Shoot", "Photo Shoot", "Graphic Edit",
+      "Upload", "Meeting", "Account Management", "Pre-production"
+    ];
+
+    const state = {
+      selectedEmployees: new Set(),
+      activeSessions: [],
+      busy: false,
+      lastUpdated: null
+    };
+
+    const el = {
+      notice: document.getElementById("notice"),
+      activeCount: document.getElementById("activeCount"),
+      activeSessions: document.getElementById("activeSessions"),
+      updatedLabel: document.getElementById("updatedLabel"),
+      refreshButton: document.getElementById("refreshButton"),
+      employeeChoices: document.getElementById("employeeChoices"),
+      employeeHint: document.getElementById("employeeHint"),
+      accountSelect: document.getElementById("accountSelect"),
+      departmentSelect: document.getElementById("departmentSelect"),
+      taskSelect: document.getElementById("taskSelect"),
+      startButton: document.getElementById("startButton"),
+      selectionSummary: document.getElementById("selectionSummary")
+    };
+
+    function escapeText(value) {
+      return String(value == null ? "" : value);
+    }
+
+    function makeId() {
+      if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        return window.crypto.randomUUID();
+      }
+      return "ntt-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
+    }
+
+    function callApi(action, payload = {}) {
+      return new Promise((resolve, reject) => {
+        const callbackName = "nullTrackerCallback_" + Date.now() + "_" + Math.floor(Math.random() * 1000000);
+        const script = document.createElement("script");
+        let settled = false;
+
+        function cleanup() {
+          clearTimeout(timeout);
+          delete window[callbackName];
+          script.remove();
+        }
+
+        window[callbackName] = function (data) {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          resolve(data || {});
+        };
+
+        const params = new URLSearchParams();
+        params.set("action", action);
+        params.set("payload", JSON.stringify(payload));
+        params.set("callback", callbackName);
+        params.set("_", String(Date.now()));
+        script.src = GOOGLE_SCRIPT_URL + "?" + params.toString();
+        script.async = true;
+
+        script.onerror = function () {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(new Error("The tracker service could not be reached."));
+        };
+
+        const timeout = setTimeout(function () {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(new Error("The tracker took too long to respond. Please try again."));
+        }, 20000);
+
+        document.body.appendChild(script);
+      });
+    }
+
+    function setNotice(message, type) {
+      el.notice.textContent = message || "";
+      el.notice.className = "notice" + (message ? " show" : "") + (type ? " " + type : "");
+    }
+
+    function fillSelect(select, items) {
+      const fragment = document.createDocumentFragment();
+      items.forEach(item => {
+        const option = document.createElement("option");
+        option.value = item;
+        option.textContent = item;
+        fragment.appendChild(option);
+      });
+      select.appendChild(fragment);
+    }
+
+    function getActiveEmployeeNames() {
+      return new Set(state.activeSessions.map(session => escapeText(session.employee)));
+    }
+
+    function renderEmployeeChoices() {
+      const activeNames = getActiveEmployeeNames();
+      el.employeeChoices.textContent = "";
+
+      EMPLOYEES.forEach(name => {
+        const button = document.createElement("button");
+        const selected = state.selectedEmployees.has(name);
+        const active = activeNames.has(name);
+        button.type = "button";
+        button.className = "choice";
+        button.textContent = selected ? "✓ " + name : name;
+        button.setAttribute("aria-pressed", selected ? "true" : "false");
+        button.disabled = active || state.busy;
+        button.title = active ? name + " is already working" : "";
+        button.addEventListener("click", () => {
+          if (state.selectedEmployees.has(name)) state.selectedEmployees.delete(name);
+          else state.selectedEmployees.add(name);
+          renderEmployeeChoices();
+          updateStartButton();
+        });
+        el.employeeChoices.appendChild(button);
+      });
+
+      const count = state.selectedEmployees.size;
+      el.employeeHint.textContent = count ? count + (count === 1 ? " person selected" : " people selected") : "Select one or more";
+    }
+
+    function approximateElapsed(startTime) {
+      const start = new Date(startTime).getTime();
+      if (!Number.isFinite(start)) return "active now";
+      const minutes = Math.max(0, Math.floor((Date.now() - start) / 60000));
+      if (minutes < 1) return "just started";
+      if (minutes <= 3) return minutes + " min";
+      if (minutes < 60) return "~" + Math.max(5, Math.round(minutes / 5) * 5) + "m";
+      if (minutes < 120) {
+        const rounded = Math.round(minutes / 10) * 10;
+        const hours = Math.floor(rounded / 60);
+        const remainder = rounded % 60;
+        return "~" + hours + "h" + (remainder ? remainder + "m" : "");
+      }
+      const rounded = Math.round(minutes / 30) * 30;
+      const hours = Math.floor(rounded / 60);
+      const remainder = rounded % 60;
+      return "~" + hours + "h" + (remainder ? remainder + "m" : "");
+    }
+
+    function renderActiveSessions() {
+      el.activeSessions.textContent = "";
+      el.activeCount.textContent = String(state.activeSessions.length);
+
+      if (!state.activeSessions.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.innerHTML = '<span class="empty-mark" aria-hidden="true"></span>No one is checked in right now.';
+        el.activeSessions.appendChild(empty);
+        return;
+      }
+
+      const sorted = state.activeSessions.slice().sort((a, b) => escapeText(a.employee).localeCompare(escapeText(b.employee)));
+      sorted.forEach(session => {
+        const card = document.createElement("article");
+        card.className = "session";
+
+        const dot = document.createElement("span");
+        dot.className = "status-dot";
+        dot.setAttribute("aria-label", "Active");
+
+        const info = document.createElement("div");
+        const name = document.createElement("div");
+        name.className = "session-name";
+        name.textContent = escapeText(session.employee) || "Unknown employee";
+        const detail = document.createElement("div");
+        detail.className = "session-detail";
+        detail.textContent = [session.account, session.department, session.task].filter(Boolean).map(escapeText).join(" · ") || "Work session";
+        const elapsed = document.createElement("div");
+        elapsed.className = "elapsed";
+        elapsed.dataset.startTime = escapeText(session.startTime);
+        elapsed.textContent = approximateElapsed(session.startTime);
+        info.append(name, detail, elapsed);
+
+        const stop = document.createElement("button");
+        stop.type = "button";
+        stop.className = "stop";
+        stop.textContent = "Stop";
+        stop.disabled = state.busy;
+        stop.setAttribute("aria-label", "Stop session for " + name.textContent);
+        stop.addEventListener("click", () => stopSession(session.sessionId, name.textContent));
+
+        card.append(dot, info, stop);
+        el.activeSessions.appendChild(card);
+      });
+    }
+
+    function updateElapsedLabels() {
+      document.querySelectorAll("[data-start-time]").forEach(node => {
+        node.textContent = approximateElapsed(node.dataset.startTime);
+      });
+      if (state.lastUpdated) el.updatedLabel.textContent = "Updated " + approximateElapsed(state.lastUpdated);
+    }
+
+    function updateStartButton() {
+      const count = state.selectedEmployees.size;
+      const ready = count > 0 && el.accountSelect.value && el.departmentSelect.value && el.taskSelect.value;
+      el.startButton.disabled = state.busy || !ready;
+      el.startButton.textContent = state.busy ? "Please wait…" : count ? "Start for " + count + (count === 1 ? " person" : " people") : "Start working";
+      if (!count) el.selectionSummary.textContent = "Pick at least one person and all three work details.";
+      else if (!ready) el.selectionSummary.textContent = "Now choose the account, department, and task.";
+      else el.selectionSummary.textContent = Array.from(state.selectedEmployees).join(", ");
+    }
+
+    function setBusy(busy) {
+      state.busy = busy;
+      el.refreshButton.disabled = busy;
+      el.refreshButton.classList.toggle("is-spinning", busy);
+      [el.accountSelect, el.departmentSelect, el.taskSelect].forEach(select => select.disabled = busy);
+      renderEmployeeChoices();
+      renderActiveSessions();
+      updateStartButton();
+    }
+
+    async function refreshActiveSessions(options = {}) {
+      if (state.busy && !options.force) return;
+      setBusy(true);
+      if (!options.quiet) setNotice("Checking who’s working…");
+      try {
+        const result = await callApi("getActive");
+        if (result.ok === false) throw new Error(result.error || "Could not load active sessions.");
+        state.activeSessions = Array.isArray(result.sessions) ? result.sessions : [];
+        const activeNames = getActiveEmployeeNames();
+        Array.from(state.selectedEmployees).forEach(name => {
+          if (activeNames.has(name)) state.selectedEmployees.delete(name);
+        });
+        state.lastUpdated = new Date().toISOString();
+        if (!options.quiet) setNotice("");
+      } catch (error) {
+        setNotice(error.message || "Could not load active sessions.", "error");
+      } finally {
+        setBusy(false);
+        el.updatedLabel.textContent = state.lastUpdated ? "Updated just now" : "Could not refresh";
+      }
+    }
+
+    async function startSessions() {
+      if (el.startButton.disabled) return;
+      const employees = Array.from(state.selectedEmployees);
+      const groupId = makeId();
+      const sessions = employees.map(employee => ({
+        sessionId: makeId(),
+        groupId,
+        employee,
+        account: el.accountSelect.value,
+        department: el.departmentSelect.value,
+        task: el.taskSelect.value
+      }));
+
+      setBusy(true);
+      setNotice("Starting " + employees.length + (employees.length === 1 ? " session…" : " sessions…"));
+      try {
+        const result = await callApi("start", { groupId, sessions });
+        if (!result.ok) {
+          const conflicts = Array.isArray(result.conflicts) && result.conflicts.length ? " (" + result.conflicts.join(", ") + ")" : "";
+          throw new Error((result.error || "Could not start the session.") + conflicts);
+        }
+        state.selectedEmployees.clear();
+        el.accountSelect.value = "";
+        el.departmentSelect.value = "";
+        el.taskSelect.value = "";
+        setBusy(false);
+        await refreshActiveSessions({ force: true, quiet: true });
+        setNotice(employees.length + (employees.length === 1 ? " session started." : " sessions started."), "success");
+      } catch (error) {
+        setNotice(error.message || "Could not start. Please try again.", "error");
+      } finally {
+        if (state.busy) setBusy(false);
+      }
+    }
+
+    async function stopSession(sessionId, employee) {
+      if (!sessionId || state.busy) return;
+      setBusy(true);
+      setNotice("Stopping " + employee + "’s session…");
+      try {
+        const result = await callApi("stop", { sessionId });
+        if (!result.ok) throw new Error(result.error || "Could not stop the session.");
+        setBusy(false);
+        await refreshActiveSessions({ force: true, quiet: true });
+        setNotice(employee + " is checked out.", "success");
+      } catch (error) {
+        setNotice(error.message || "Could not stop the session. Please try again.", "error");
+      } finally {
+        if (state.busy) setBusy(false);
+      }
+    }
+
+    fillSelect(el.accountSelect, ACCOUNTS);
+    fillSelect(el.departmentSelect, DEPARTMENTS);
+    fillSelect(el.taskSelect, TASKS);
+    renderEmployeeChoices();
+    renderActiveSessions();
+    updateStartButton();
+
+    [el.accountSelect, el.departmentSelect, el.taskSelect].forEach(select => select.addEventListener("change", updateStartButton));
+    el.startButton.addEventListener("click", startSessions);
+    el.refreshButton.addEventListener("click", () => refreshActiveSessions());
+
+    refreshActiveSessions();
+    setInterval(updateElapsedLabels, 30000);
+    setInterval(() => refreshActiveSessions({ quiet: true }), 120000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") refreshActiveSessions({ quiet: true });
+    });
+  </script>
 </body>
 </html>

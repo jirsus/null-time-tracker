@@ -298,6 +298,50 @@
     input[type="datetime-local"]:focus-visible { outline: 3px solid rgba(25, 44, 196, .22); outline-offset: 2px; }
     .manual-duration { color: var(--muted); font-size: 13px; }
 
+    .stop-dialog {
+      width: min(440px, calc(100% - 24px));
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--paper);
+      color: var(--ink);
+      box-shadow: 0 24px 70px rgba(5, 5, 5, .2);
+    }
+    .stop-dialog::backdrop { background: rgba(5, 5, 5, .48); }
+    .stop-dialog-panel { padding: 24px; }
+    .stop-dialog h2 { font-size: 21px; }
+    .stop-dialog-copy { margin-top: 7px; color: var(--muted); font-size: 14px; line-height: 1.45; }
+    .stop-choice-grid { display: grid; gap: 10px; margin-top: 22px; }
+    .secondary-button,
+    .text-button {
+      min-height: 48px;
+      padding: 0 18px;
+      border: 1px solid var(--ink);
+      border-radius: 14px;
+      background: var(--paper);
+      color: var(--ink);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .secondary-button:hover:not(:disabled) { background: #eeeeef; }
+    .text-button {
+      min-height: 40px;
+      margin-top: 10px;
+      border-color: transparent;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .stop-earlier-fields {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+    }
+    .stop-earlier-fields[hidden] { display: none; }
+    .stop-help { margin-top: 9px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+    .stop-dialog .start,
+    .stop-dialog .secondary-button { width: 100%; }
+    .stop-dialog button:disabled { opacity: .55; cursor: wait; }
+
     .notice {
       display: none;
       margin-bottom: 16px;
@@ -434,7 +478,29 @@
       </div>
     </details>
 
-    <div class="footer">Null Time Tracker · v3 · timestamps live in Google Sheets</div>
+    <dialog class="stop-dialog" id="stopDialog" aria-labelledby="stopDialogTitle">
+      <div class="stop-dialog-panel">
+        <h2 id="stopDialogTitle">When did you finish?</h2>
+        <p class="stop-dialog-copy" id="stopDialogCopy">Choose whether the session ended now or earlier.</p>
+
+        <div class="stop-choice-grid">
+          <button class="start" id="stopNowButton" type="button">Stop now</button>
+          <button class="secondary-button" id="stopEarlierButton" type="button">I finished earlier</button>
+        </div>
+
+        <div class="stop-earlier-fields" id="stopEarlierFields" hidden>
+          <label class="select-label">Actual end date and time
+            <input id="correctedEndTime" type="datetime-local">
+          </label>
+          <p class="stop-help" id="stopCorrectionHelp">The end time must be after the session started and cannot be in the future.</p>
+          <button class="start" id="confirmEarlierButton" type="button">Save corrected end time</button>
+        </div>
+
+        <button class="text-button" id="cancelStopButton" type="button">Cancel</button>
+      </div>
+    </dialog>
+
+    <div class="footer">Null Time Tracker · v3.3 · timestamps live in Google Sheets</div>
   </main>
 
   <script>
@@ -462,7 +528,8 @@
       selectedEmployees: new Set(),
       activeSessions: [],
       busy: false,
-      lastUpdated: null
+      lastUpdated: null,
+      pendingStop: null
     };
 
     const el = {
@@ -486,7 +553,16 @@
       manualStart: document.getElementById("manualStart"),
       manualEnd: document.getElementById("manualEnd"),
       manualSaveButton: document.getElementById("manualSaveButton"),
-      manualDuration: document.getElementById("manualDuration")
+      manualDuration: document.getElementById("manualDuration"),
+      stopDialog: document.getElementById("stopDialog"),
+      stopDialogCopy: document.getElementById("stopDialogCopy"),
+      stopNowButton: document.getElementById("stopNowButton"),
+      stopEarlierButton: document.getElementById("stopEarlierButton"),
+      stopEarlierFields: document.getElementById("stopEarlierFields"),
+      correctedEndTime: document.getElementById("correctedEndTime"),
+      stopCorrectionHelp: document.getElementById("stopCorrectionHelp"),
+      confirmEarlierButton: document.getElementById("confirmEarlierButton"),
+      cancelStopButton: document.getElementById("cancelStopButton")
     };
 
     function escapeText(value) {
@@ -651,7 +727,7 @@
         stop.textContent = "Stop";
         stop.disabled = state.busy;
         stop.setAttribute("aria-label", "Stop session for " + name.textContent);
-        stop.addEventListener("click", () => stopSession(session.sessionId, name.textContent));
+        stop.addEventListener("click", () => openStopDialog(session));
 
         card.append(dot, info, stop);
         el.activeSessions.appendChild(card);
@@ -678,6 +754,80 @@
     function toDatetimeLocalValue(date) {
       const offset = date.getTimezoneOffset() * 60000;
       return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+    }
+
+    function formatDateTime(value) {
+      const date = new Date(value);
+      if (!Number.isFinite(date.getTime())) return "an unknown time";
+      return date.toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    function openStopDialog(session) {
+      if (state.busy || !session.sessionId) return;
+
+      state.pendingStop = {
+        sessionId: session.sessionId,
+        employee: escapeText(session.employee) || "This employee",
+        startTime: session.startTime
+      };
+
+      el.stopDialogCopy.textContent = state.pendingStop.employee +
+        " started at " + formatDateTime(session.startTime) + ".";
+      el.stopEarlierFields.hidden = true;
+      el.correctedEndTime.value = "";
+      updateStopCorrection();
+      el.stopDialog.showModal();
+    }
+
+    function closeStopDialog() {
+      if (state.busy) return;
+      state.pendingStop = null;
+      el.stopDialog.close();
+    }
+
+    function showEarlierStopFields() {
+      if (!state.pendingStop) return;
+
+      const now = new Date();
+      const start = new Date(state.pendingStop.startTime);
+      const minimum = new Date(start.getTime() + 60000);
+      const suggested = new Date(Math.max(minimum.getTime(), now.getTime() - 30 * 60000));
+
+      el.correctedEndTime.min = toDatetimeLocalValue(minimum);
+      el.correctedEndTime.max = toDatetimeLocalValue(now);
+      el.correctedEndTime.value = toDatetimeLocalValue(suggested);
+      el.stopEarlierFields.hidden = false;
+      updateStopCorrection();
+      el.correctedEndTime.focus();
+    }
+
+    function updateStopCorrection() {
+      const pending = state.pendingStop;
+      const start = pending ? new Date(pending.startTime).getTime() : NaN;
+      const end = new Date(el.correctedEndTime.value).getTime();
+      const now = Date.now();
+      const valid = Number.isFinite(start) && Number.isFinite(end) && end > start && end <= now;
+
+      el.confirmEarlierButton.disabled = state.busy || !valid;
+
+      if (!el.correctedEndTime.value) {
+        el.stopCorrectionHelp.textContent = "Choose when the work actually ended.";
+      } else if (end <= start) {
+        el.stopCorrectionHelp.textContent = "End time must be after the session started.";
+      } else if (end > now) {
+        el.stopCorrectionHelp.textContent = "End time cannot be in the future.";
+      } else {
+        const minutes = Math.max(1, Math.round((end - start) / 60000));
+        const hours = Math.floor(minutes / 60);
+        const remainder = minutes % 60;
+        el.stopCorrectionHelp.textContent = "Recorded duration: " +
+          (hours ? hours + "h " : "") + remainder + "m";
+      }
     }
 
     function resetManualTimes() {
@@ -719,10 +869,14 @@
         el.manualEmployee, el.manualAccount, el.manualDepartment, el.manualTask,
         el.manualStart, el.manualEnd
       ].forEach(control => control.disabled = busy);
+      el.stopNowButton.disabled = busy;
+      el.stopEarlierButton.disabled = busy;
+      el.cancelStopButton.disabled = busy;
       renderEmployeeChoices();
       renderActiveSessions();
       updateStartButton();
       updateManualButton();
+      updateStopCorrection();
     }
 
     async function refreshActiveSessions(options = {}) {
@@ -782,13 +936,21 @@
       }
     }
 
-    async function stopSession(sessionId, employee) {
-      if (!sessionId || state.busy) return;
+    async function submitStop(endTime) {
+      const pending = state.pendingStop;
+      if (!pending || state.busy) return;
+
+      const payload = { sessionId: pending.sessionId };
+      if (endTime) payload.endTime = endTime;
+
       setBusy(true);
-      setNotice("Stopping " + employee + "’s session…");
+      setNotice("Stopping " + pending.employee + "’s session…");
       try {
-        const result = await callApi("stop", { sessionId });
+        const result = await callApi("stop", payload);
         if (!result.ok) throw new Error(result.error || "Could not stop the session.");
+        const employee = pending.employee;
+        el.stopDialog.close();
+        state.pendingStop = null;
         setBusy(false);
         await refreshActiveSessions({ force: true, quiet: true });
         setNotice(employee + " is checked out.", "success");
@@ -855,6 +1017,18 @@
       el.manualTask, el.manualStart, el.manualEnd
     ].forEach(control => control.addEventListener("change", updateManualButton));
     el.manualSaveButton.addEventListener("click", saveManualEntry);
+    el.stopNowButton.addEventListener("click", () => submitStop(null));
+    el.stopEarlierButton.addEventListener("click", showEarlierStopFields);
+    el.correctedEndTime.addEventListener("input", updateStopCorrection);
+    el.confirmEarlierButton.addEventListener("click", () => {
+      if (el.confirmEarlierButton.disabled) return;
+      submitStop(new Date(el.correctedEndTime.value).toISOString());
+    });
+    el.cancelStopButton.addEventListener("click", closeStopDialog);
+    el.stopDialog.addEventListener("cancel", event => {
+      if (state.busy) event.preventDefault();
+      else state.pendingStop = null;
+    });
 
     refreshActiveSessions();
     setInterval(updateElapsedLabels, 30000);

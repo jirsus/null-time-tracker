@@ -500,7 +500,7 @@
       </div>
     </dialog>
 
-    <div class="footer">Null Time Tracker · v3.3 · timestamps live in Google Sheets</div>
+    <div class="footer">Null Time Tracker · v3.4 · timestamps live in Google Sheets</div>
   </main>
 
   <script>
@@ -576,7 +576,7 @@
       return "ntt-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
     }
 
-    function callApi(action, payload = {}) {
+    function callApiOnce(action, payload = {}) {
       return new Promise((resolve, reject) => {
         const callbackName = "nullTrackerCallback_" + Date.now() + "_" + Math.floor(Math.random() * 1000000);
         const script = document.createElement("script");
@@ -615,10 +615,20 @@
           settled = true;
           cleanup();
           reject(new Error("The tracker took too long to respond. Please try again."));
-        }, 20000);
+        }, 30000);
 
         document.body.appendChild(script);
       });
+    }
+
+    async function callApi(action, payload = {}) {
+      try {
+        return await callApiOnce(action, payload);
+      } catch (error) {
+        if (action !== "getActive") throw error;
+        await new Promise(resolve => setTimeout(resolve, 750));
+        return callApiOnce(action, payload);
+      }
     }
 
     function setNotice(message, type) {
